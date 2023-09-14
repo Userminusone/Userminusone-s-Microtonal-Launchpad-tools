@@ -1,0 +1,73 @@
+desc:MIDI Launchpad Range Expand
+author:Userminusone
+
+in_pin:none
+out_pin:none
+
+@init
+noteOn = $x90;
+noteOff = $x80;
+statusFilter = $xF0;
+channelFilter = $x0F;
+noteFilter = $x7F;
+outputFilter = $xFF00;
+ccStatus = 176;
+ccNoteOn = 32512;
+ccNoteOff = 0;
+buf = 100000;
+buf[0] = 240;
+buf[1] = 0;
+buf[2] = 32;
+buf[3] = 41;
+buf[4] = 2;
+buf[5] = 13;
+buf[6] = 0;
+buf[7] = 127;
+buf[8] = 247;
+midisend_buf(offset,buf,9);
+
+@block
+/*
+buf = 10000;
+maxlen = 65536;
+while((recvlen = midirecv_buf(offset,buf,maxlen)) > 0) (
+  recvlen == 3 ? (
+    status = buf[0] & statusFilter;
+    channel = buf[0] & channelFilter;
+    note = buf[1] & noteFilter;
+    (status == ccStatus) ? (
+      (buf[2] == ccNoteOn) ? (
+        status = noteOn;
+      );
+      (buf[2] == ccNoteOff) ? (
+        status = noteOff;
+      );
+    );
+    midisend(offset,status + channel,note,buf[2]);
+  );
+);
+*/
+while(
+  midirecv(offset, msg1, msg23) ?
+  (
+    status = msg1 & statusFilter;
+    channel = msg1 & channelFilter;
+    note = msg23 & noteFilter;
+    
+    (status == ccStatus) ? (
+      otherStatus = msg23 - note;
+      (otherStatus == ccNoteOn) ? (
+        status = noteOn;
+      );
+      (otherStatus == ccNoteOff) ? (
+        status = noteOff;
+      );
+    );
+    
+    msg1 = status + channel;
+    msg23 = (msg23 & outputFilter) | note;
+    midisend(offset, msg1, msg23);
+    
+    1;
+  );
+);

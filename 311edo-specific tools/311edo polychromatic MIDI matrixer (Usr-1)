@@ -1,0 +1,45 @@
+desc:311edo polychromatic MIDI matrixer
+author:Userminusone
+
+slider1:input=0<0,2,1{1,2,3}>Input
+slider2:output=0<0,3,1{A,B,C,D}>Output
+
+in_pin:none
+out_pin:none
+
+@init
+noteOn = $x90;
+noteOff = $x80;
+statusFilter = $xF0;
+channelFilter = $x0F;
+noteFilter = $x7F;
+outputFilter = $xFF00;
+
+@block
+while
+(
+  midirecv(offset, msg1, msg23) ?
+  (
+    status = msg1 & statusFilter;
+    (status == noteOn || status == noteOff) ? 
+    (
+      channel = msg1 & channelFilter;
+      outputInstrument = floor(channel / 3);
+      (outputInstrument == output) ?
+      (
+        instrumentNoteOffset = channel - (3 * outputInstrument);
+        note = msg23 & noteFilter;
+        rawNote = floor(note / 3);
+        stepOffset = note - (3 * rawNote);
+        octaveOffset = floor(rawNote / 12);
+        noteInOctave = rawNote - (12 * octaveOffset);
+        octave = (3 * input) + octaveOffset;
+        finalNote = stepOffset + (3 * instrumentNoteOffset) + (9 * noteInOctave);
+        msg1 = status + octave;
+        msg23 = (msg23 & outputFilter) | finalNote;
+        midisend(offset, msg1, msg23);
+      );
+    );
+    1;
+  );
+);

@@ -1,0 +1,62 @@
+desc:MIDI input block filter
+author:Userminusone
+
+
+slider1:0<0,1,1{No,Yes}>Input block 1
+slider2:0<0,1,1{No,Yes}>Input block 2
+slider3:0<0,1,1{No,Yes}>Input block 3
+slider4:0<0,1,1{No,Yes}>Input block 4
+
+in_pin:none
+out_pin:none
+
+@init
+noteOn4 = $x90;
+noteOff4 = $x80;
+noteOn3 = $xB0;
+noteOff3 = $xA0;
+noteOn2 = $xD0;
+noteOff2 = $xC0;
+noteOn1 = $xF0;
+noteOff1 = $xE0;
+statusFilter = $xF0;
+channelFilter = $x0F;
+
+@block
+while(
+  midirecv(offset, msg1, msg23) ?
+  (
+    status = msg1 & statusFilter;
+    outStatus = 0;
+    (status >= noteOff4) && (status <= noteOn1) ? (
+      channel = msg1 & channelFilter;
+      test = status & $x10;
+      (slider1 == 1) ? (
+        (status == noteOn1) || (status == noteOff1) ? (
+          outStatus = $x80 + (status & $x10);
+        );
+      );
+      (slider2 == 1) ? (
+        (status == noteOn2) || (status == noteOff2) ? (
+          outStatus = $x80 + (status & $x10);
+        );
+      );
+      (slider3 == 1) ? (
+        (status == noteOn3) || (status == noteOff3) ? (
+          outStatus = $x80 + (status & $x10);
+        );
+      );
+      (slider4 == 1) ? (
+       (status == noteOn4) || (status == noteOff4) ? (
+         outStatus = $x80 + (status & $x10);
+       );
+      );
+    );
+    
+    msg1 = outStatus + channel;
+    midisend(offset, msg1, msg23);
+    1;
+  );
+);
+    
+    

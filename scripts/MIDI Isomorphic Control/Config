@@ -1,0 +1,259 @@
+desc:MIDI Isomorphic Control/Config
+options:gmem=umo_isomorphic_config
+author:Userminusone
+
+in_pin:none
+out_pin:none
+
+slider1:/isomorphic_color_maps:none:Color Map File
+slider2:0<0,1,1{---,Reload Now}>Reload Color Map
+slider3:0<-64,64,1>X Steps
+slider4:0<-64,64,1>Y Steps
+slider5:0<-128,128,1>Transpose
+slider6:1<0,1,1{No,Yes}>Reset Flags On Init
+slider7:/isomorphic_scale_maps:none:Scale Map File
+slider8:0<0,1,1{---,Reload Now}>Reload Scale Map
+slider9:0<-64,64,1>Global X Offset
+slider10:0<-64,64,1>Global Y Offset
+
+@init
+slider6 == 1 ? (
+  gmem[0] = 1;//reload flag
+  gmem[1] = 0;//transpose
+  gmem[2] = 0;//xsteps
+  gmem[3] = 0;//ysteps
+  gmem[4] = 1;//scale size
+  gmem[5] = 0;//reference note
+  
+  gmem[6] = 50;//start color idx
+  gmem[7] = 10000;//start color palette idx
+  
+  gmem[8] = 10001;//scale size read flag
+  gmem[9] = 10002;//reference note read flag
+  gmem[10] = 10003;//color palette read flag
+  gmem[11] = 10004;//note colormap set flag
+  
+  
+  
+  gmem[12] = 0;//enable scale flag
+  gmem[13] = 0;//global x offset
+  gmem[14] = 0;//global y offset
+  gmem[15] = 1;//base scale size
+  gmem[16] = 1;//remap scale size
+  
+  gmem[17] = 40;//note zone map idx
+  gmem[18] = 20000;//base scale idx
+  gmem[19] = 30000;//remap scale idx
+  
+  gmem[20] = 10005;//enable scale read flag
+  gmem[21] = 10006;//base scale size read flag
+  gmem[22] = 10007;//base scale read flag
+  gmem[23] = 10008;//remap scale size read flag
+  gmem[24] = 10009;//remap scale read flag
+  gmem[25] = 10010;//note zone map read flag
+  //default color
+  gmem[gmem[6]] = 0;
+  gmem[gmem[6] + 1] = 0;
+  gmem[gmem[6] + 2] = 0;
+  //default note zone map
+  gmem[gmem[17]] = 0;
+  //default scale map
+  gmem[gmem[18]] = 0;
+  gmem[gmem[18] + 1] = 1;
+  //default scale remap
+  //default scale map
+  gmem[gmem[19]] = 0;
+  gmem[gmem[19] + 1] = 1;
+  gmem[gmem[19] + 2] = 1;
+  
+  colormap = -1;
+  scalemap = -1;
+  flipReloadFlag = 0;
+);
+
+noteOn = $x90;
+statusFilter = $xF0;
+noteFilter = $x7F;
+
+@slider
+slider2 == 1 ? (
+  fileReload = 1;
+  slider2 = 0; sliderchange(slider2);
+);
+slider8 == 1 ? (
+  scaleFileReload = 1;
+  slider8 = 0; sliderchange(slider8);
+);
+
+colormap != slider1 | 0 || fileReload == 1 ? (
+  colormap = slider1;
+  filehandle = file_open(slider1);
+  filehandle > 0 && file_text(filehandle) ? (
+    mode = gmem[8];
+    idx = 0;
+    data = 0;
+    while(
+      file_var(filehandle,data);
+      (data < gmem[8]) ? (
+        (mode == gmem[8]) ? (
+          gmem[4] = data;//scale size
+        ) : (mode == gmem[9]) ? (
+          gmem[5] = data;//reference note
+        ) : (mode == gmem[10]) ? (
+          gmem[gmem[7] + idx] = data;
+          idx += 1;
+        ) : (mode == gmem[11]) ? (
+          gmem[gmem[6] + 3 * idx] = gmem[gmem[7] + 3 * data];
+          gmem[gmem[6] + 1 + 3 * idx] = gmem[gmem[7] + 1 + 3 * data];
+          gmem[gmem[6] + 2 + 3 * idx] = gmem[gmem[7] + 2 + 3 * data];
+          idx += 1;
+        );
+      ) : (
+        mode = data;
+        idx = 0;
+      );
+      file_avail(filehandle);
+    );
+    file_close(filehandle);
+  );
+  fileReload = 0;
+  flipReloadFlag = 1;
+);
+scalemap != slider7 | 0 || scaleFileReload == 1 ? (
+  scalemap = slider7;
+  filehandle = file_open(slider7);
+  filehandle > 0 && file_text(filehandle) ? (
+    mode = gmem[20];
+    idx = 0;
+    data = 0;
+    while(
+      file_var(filehandle,data);
+      (data < gmem[20]) ? (
+        (mode == gmem[20]) ? (
+          gmem[12] = data;//enable scale flag
+        ) : (mode == gmem[21]) ? (
+          gmem[15] = data;//base scale size
+        ) : (mode == gmem[22]) ? (
+          gmem[gmem[18] + idx] = data;
+          idx += 1;
+        ) : (mode == gmem[23]) ? (
+          gmem[16] = data;//remap scale size
+        ) : (mode == gmem[24]) ? (
+          gmem[gmem[19] + idx] = data;
+          idx += 1;
+        ) : (mode == gmem[25]) ? (
+          gmem[gmem[17] + idx] = data;
+          idx += 1;
+        );
+      ) : (
+        mode = data;
+        idx = 0;
+      );
+      file_avail(filehandle);
+    );
+    file_close(filehandle);
+  );
+  scaleFileReload = 0;
+  flipReloadFlag = 1;
+);
+(gmem[2] != slider3) ? (
+  gmem[2] = slider3;//xsteps
+  flipReloadFlag = 1;
+);
+(gmem[3] != slider4) ? (
+  gmem[3] = slider4;//ysteps
+  flipReloadFlag = 1;
+);
+(gmem[1] != slider5) ? (
+  gmem[1] = slider5;//transpose
+  flipReloadFlag = 1;
+);
+(gmem[13] != slider9) ? (
+  gmem[13] = slider9;//global x offset
+  flipReloadFlag = 1;
+);
+(gmem[14] != slider10) ? (
+  gmem[14] = slider10;//global y offset
+  flipReloadFlag = 1;
+);
+(flipReloadFlag == 1) ? (
+  gmem[0] = 1 - gmem[0];//reload flag
+  flipReloadFlag = 0;
+);
+
+@block
+while (
+  midirecv(offset, msg1, msg23) ? (
+    status = msg1 & statusFilter;
+    note = msg23 & noteFilter;
+    (note > 90 && status == noteOn) ? (
+      note -= 90;
+      (note == 1) ? (
+        (gmem[12] == 1) ? (
+          gmem[14] += 1;//global y offset
+          slider10 = gmem[14];
+          sliderchange(slider10);
+        ) : (
+          gmem[1] += gmem[3];//ysteps
+          slider5 = gmem[1];//transpose
+          sliderchange(slider5);
+        );
+        gmem[0] = 1 - gmem[0];//reload flag
+      ) : (note == 2) ? (
+        (gmem[12] == 1) ? (
+          gmem[14] -= 1;//global y offset
+          slider10 = gmem[14];
+          sliderchange(slider10);
+        ) : (
+          gmem[1] -= gmem[3];//ysteps
+          slider5 = gmem[1];//transpose
+          sliderchange(slider5);
+        );
+        gmem[0] = 1 - gmem[0];//reload flag
+      ) : (note == 3) ? (
+        (gmem[12] == 1) ? (
+          gmem[13] -= 1;//global x offset
+          slider9 = gmem[13];
+          sliderchange(slider9);
+        ) : (
+          gmem[1] -= gmem[2];//xsteps
+          slider5 = gmem[1];//transpose
+          sliderchange(slider5);
+        );
+        gmem[0] = 1 - gmem[0];//reload flag
+      ) : (note == 4) ? (
+        (gmem[12] == 1) ? (
+          gmem[13] += 1;//global x offset
+          slider9 = gmem[13];
+          sliderchange(slider9);
+        ) : (
+          gmem[1] += gmem[2];//xsteps
+          slider5 = gmem[1];//transpose
+          sliderchange(slider5);
+        );
+        gmem[0] = 1 - gmem[0];//reload flag
+      ) : (note == 5) ? (
+        gmem[1] -= 1;
+        slider5 = gmem[1];//transpose
+        sliderchange(slider5);
+        gmem[0] = 1 - gmem[0];//reload flag
+      ) : (note == 6) ? (
+        gmem[1] += 1;
+        slider5 = gmem[1];//transpose
+        sliderchange(slider5);
+        gmem[0] = 1 - gmem[0];//reload flag
+      ) : (note == 7) ? (
+        gmem[1] -= gmem[4];//scale size
+        slider5 = gmem[1];//transpose
+        sliderchange(slider5);
+        gmem[0] = 1 - gmem[0];//reload flag
+      ) : (note == 8) ? (
+        gmem[1] += gmem[4];//scale size
+        slider5 = gmem[1];//transpose
+        sliderchange(slider5);
+        gmem[0] = 1 - gmem[0];//reload flag
+      );
+    );
+  );
+  1;
+);

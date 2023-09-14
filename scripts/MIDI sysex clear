@@ -1,0 +1,14 @@
+desc:MIDI sysex clear
+author:Userminusone
+
+in_pin:none
+out_pin:none
+
+@block
+buf = 10000;
+maxlen = 65536;
+while((recvlen = midirecv_buf(offset,buf,maxlen)) > 0) (
+  buf[0] != $xF0 ? (
+    midisend_buf(offset,buf,recvlen);
+  );
+);

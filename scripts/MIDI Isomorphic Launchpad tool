@@ -1,0 +1,230 @@
+desc: MIDI Isomorphic Launchpad tool
+options:gmem=umo_isomorphic_config
+author:Userminusone
+
+in_pin:none
+out_pin:none
+
+slider1:0<0,1,1{No,Yes}>Disable Top Row
+slider2:0<0,3,1{---,CW,FULL,CCW}>Rotation
+slider3:0<-64,64,1>X Offset
+slider4:0<-64,64,1>Y Offset
+
+@init
+noteOn = $x90;
+noteOff = $x80;
+statusFilter = $xF0;
+channelFilter = $x0F;
+noteFilter = $x7F;
+outputFilter = $xFF00;
+buf = 100000;
+bufMessageSize = 8 + 81 * 5;
+buf[bufMessageSize - 1] = 247;
+buf[0] = 240;
+buf[1] = 0;
+buf[2] = 32;
+buf[3] = 41;
+buf[4] = 2;
+buf[5] = 13;
+buf[6] = 3;
+reloadFlag = 1 - gmem[0];
+needsLocalReload = 0;
+disableTop = 0;
+rotation = 0;
+localxoffset = 0;
+localyoffset = 0;
+lastOffset = 0;
+
+function reload(off)(
+  tempypos = 0;
+  i = 0;
+  loop(
+    (9 - disableTop),
+    tempxpos = 0;
+    loop(
+      9,
+      buf[7 + 5 * i] = 3;
+      buf[8 + 5 * i] = 10 * tempypos + tempxpos + 11;
+      rotation == 0 ? (
+        tempxpos2 = tempxpos;
+        tempypos2 = tempypos;
+      ) : rotation == 1 ? (
+        tempxpos2 = 8 - tempypos;
+        tempypos2 = tempxpos;
+      ) : rotation == 2 ? (
+        tempxpos2 = 8 - tempxpos;
+        tempypos2 = 8 - tempypos;
+      ) : rotation == 3 ? (
+        tempxpos2 = tempypos;
+        tempypos2 = 8 - tempxpos;
+      );
+      tempxpos2 += localxoffset;
+      tempypos2 += localyoffset;
+      (gmem[12] == 1) ? (
+        tempxpos2 += gmem[13];
+        tempypos2 += gmem[14];
+      );
+      tempnote = tempxpos2 * gmem[2] + tempypos2 * gmem[3];
+      (gmem[12] == 1) ? (
+        octaves = floor(tempnote / gmem[15]);
+        noteInOctave = tempnote - octaves * gmem[15];
+        tempnote = octaves * gmem[gmem[18] + gmem[15]] + gmem[gmem[18] + noteInOctave];
+        tempnote += gmem[1];
+        
+        
+        
+        
+        remapOctaves = floor(tempnote / gmem[16]);
+        remapNoteInOctave = tempnote - remapOctaves * gmem[16];
+        testnote = remapOctaves * gmem[gmem[19] + 2 * gmem[16]] + gmem[gmem[19] + remapNoteInOctave * 2];
+        
+        (testnote > gmem[gmem[17]]) ? (
+          testnote -= gmem[gmem[17]];
+        ) : (testnote > gmem[gmem[17] + 1]) ? (
+          testnote -= gmem[gmem[17] + 1];
+        ) : (testnote > gmem[gmem[17] + 2]) ? (
+          testnote -= gmem[gmem[17] + 2];
+        );
+      ) : (
+        tempnote += gmem[1];
+        testnote = tempnote;
+      );
+      (testnote < 0) ? (
+        buf[9 + 5 * i] = 0;
+        buf[10 + 5 * i] = 0;
+        buf[11 + 5 * i] = 0;
+      ) : (testnote > 127) ? (
+        buf[9 + 5 * i] = 0;
+        buf[10 + 5 * i] = 0;
+        buf[11 + 5 * i] = 0;
+      ) : (
+        tempnote -= gmem[5];
+        coloridx = tempnote - gmem[4] * floor(tempnote / gmem[4]);
+        buf[9 + 5 * i] = gmem[gmem[6] + 3 * coloridx];
+        buf[10 + 5 * i] = gmem[gmem[6] + 1 + 3 * coloridx];
+        buf[11 + 5 * i] = gmem[gmem[6] + 2 + 3 * coloridx];
+      );
+      i += 1;
+      tempxpos += 1;
+    );
+    tempypos += 1;
+  );
+  (disableTop == 1) ? (
+    loop(
+      9,
+      buf[9 + 5 * i] = 0;
+      buf[10 + 5 * i] = 0;
+      buf[11 + 5 * i] = 0;
+      i += 1;
+    );
+  );
+  midisend_buf(off,buf,bufMessageSize);
+  n = 0;
+  loop(
+    128,
+    c = 0;
+    loop(
+      16,
+      midisend(off,noteOff + c,n);
+      c += 1;
+    );
+    n += 1;
+  );
+  reloadFlag = gmem[0];
+  needsLocalReload = 0;
+);
+
+@slider
+(slider1 != disableTop) ? (
+  disableTop = slider1;
+  needsLocalReload = 1;
+);
+(slider2 != rotation) ? (
+  rotation = slider2;
+  needsLocalReload = 1;
+);
+(slider3 != localxoffset) ? (
+  localxoffset = slider3;
+  needsLocalReload = 1;
+);
+(slider4 != localyoffset) ? (
+  localyoffset = slider4;
+  needsLocalReload = 1;
+);
+
+@block
+while(
+  (needsLocalReload == 1 || reloadFlag != gmem[0]) ? (
+    reload(lastOffset);
+  );
+  midirecv(offset, msg1, msg23) ? (
+    lastOffset = offset;
+    status = msg1 & statusFilter;
+    (status == noteOn || status == noteOff) ? (
+      outputStatus = status - noteOff;
+      note = msg23 & noteFilter;
+      (note < 90 || disableTop == 0) ? (
+        channel = msg1 & channelFilter;
+        notey = floor(note / 10) - 1;
+        notex = note - notey * 10 - 11;
+        rotation == 0 ? (
+          notex2 = notex;
+          notey2 = notey;
+        ) : rotation == 1 ? (
+          notex2 = 8 - notey;
+          notey2 = notex;
+        ) : rotation == 2 ? (
+          notex2 = 8 - notex;
+          notey2 = 8 - notey;
+        ) : rotation == 3 ? (
+          notex2 = notey;
+          notey2 = 8 - notex;
+        );
+        notex2 += localxoffset;
+        notey2 += localyoffset;
+        (gmem[12] == 1) ? (
+          notex2 += gmem[13];
+          notey2 += gmem[14];
+        );
+        outputNote = notex2 * gmem[2] + notey2 * gmem[3];
+        (gmem[12] == 1) ? (
+          octaves2 = floor(outputNote / gmem[15]);
+          noteInOctave2 = outputNote - octaves2 * gmem[15];
+          outputNote = octaves2 * gmem[gmem[18] + gmem[15]] + gmem[gmem[18] + noteInOctave2];
+          outputNote += gmem[1];
+          
+          remapOctaves2 = floor(outputNote / gmem[16]);
+          remapNoteInOctave2 = outputNote - remapOctaves2 * gmem[16];
+          outputNote = remapOctaves2 * gmem[gmem[19] + 2 * gmem[16]] + gmem[gmem[19] + remapNoteInOctave2 * 2];
+          outputChannel = gmem[gmem[19] + remapNoteInOctave2 * 2 + 1];
+          
+          (outputNote > gmem[gmem[17]]) ? (
+            outputNote -= gmem[gmem[17]];
+            outputStatus += $x80;
+          ) : (outputNote > gmem[gmem[17] + 1]) ? (
+            outputNote -= gmem[gmem[17] + 1];
+            outputStatus += $xA0;
+          ) : (outputNote > gmem[gmem[17] + 2]) ? (
+            outputNote -= gmem[gmem[17] + 2];
+            outputStatus += $xC0;
+          ) : (
+            outputStatus += $xE0;
+          );
+        ) : (
+          outputNote += gmem[1];
+          outputStatus = status;
+          outputChannel = channel;
+        );
+          
+        (outputNote > 127) ? (
+          1;
+        ) : (outputNote > -1) ? (
+          outMsg1 = outputStatus + outputChannel;
+          outMsg23 = (msg23 & outputFilter) | outputNote;
+          midisend(lastOffset, outMsg1, outMsg23);
+        );
+      );
+    );
+    1;
+  );
+);

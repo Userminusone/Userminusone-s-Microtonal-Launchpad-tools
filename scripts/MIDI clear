@@ -1,0 +1,14 @@
+desc:MIDI clear
+author:Userminusone
+
+in_pin:none
+out_pin:none
+
+@block
+buf = 10000;
+maxlen = 65536;
+while(
+  midirecv(offset,msg1,msg23) ? (
+    1;
+  );
+);
