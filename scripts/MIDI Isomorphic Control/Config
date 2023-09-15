@@ -15,6 +15,7 @@ slider7:/isomorphic_scale_maps:none:Scale Map File
 slider8:0<0,1,1{---,Reload Now}>Reload Scale Map
 slider9:0<-64,64,1>Global X Offset
 slider10:0<-64,64,1>Global Y Offset
+slider11:0<0,1,1{No,Yes}>Use MIDI channel for Octave Shift
 
 @init
 slider6 == 1 ? (
@@ -51,6 +52,7 @@ slider6 == 1 ? (
   gmem[23] = 10008;//remap scale size read flag
   gmem[24] = 10009;//remap scale read flag
   gmem[25] = 10010;//note zone map read flag
+  gmem[26] = 0;//midi channel octave shift
   //default color
   gmem[gmem[6]] = 0;
   gmem[gmem[6] + 1] = 0;
@@ -174,6 +176,10 @@ scalemap != slider7 | 0 || scaleFileReload == 1 ? (
 );
 (gmem[14] != slider10) ? (
   gmem[14] = slider10;//global y offset
+  flipReloadFlag = 1;
+);
+(gmem[26] != slider11) ? (
+  gmem[26] = slider11;//midi channel octave shift
   flipReloadFlag = 1;
 );
 (flipReloadFlag == 1) ? (
